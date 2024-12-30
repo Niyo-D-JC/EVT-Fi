@@ -1,0 +1,130 @@
+---
+title: "ADOBE"
+author: "DEBA | JC| HF"
+date: "10/30/2024"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+
+# Application de la théorie des valeurs extrême en finance de marché: Cas des rendements journaliers des action Adobe.
+
+## Définition du Contexte
+Créée en décembre 1982 et cotée au NASDAQ depuis 1986, Adobe est un leader mondial dans l'édition de logiciels de création graphique, de montage audio et vidéo. Après une forte expansion initiale, l’entreprise a vu sa croissance freinée en 1994 par une interdiction d'acquérir des logiciels concurrents, ce qui l’a poussée à concentrer ses efforts sur ses activités existantes. Cette restriction levée en 2005, Adobe a relancé sa stratégie d'expansion et, au cours de la dernière décennie, a renforcé sa présence sur le marché européen en absorbant plusieurs concurrents. En 2022, Adobe a tenté d'acquérir l'éditeur d'images vectorielles Figma pour 20 milliards de dollars, mais cet achat a été bloqué par les autorités de régulation européennes et britanniques \cite{Achat}.
+
+Dans un contexte d’évolution rapide des technologies depuis les années 80, accéléré de manière exponentielle au cours des deux dernières décennies, il est pertinent d’analyser comment les actions d'Adobe ont évolué dans cet environnement en perpétuelle transformation. Étudier la volatilité des rendements de ses actions s'avère crucial pour un investisseur potentiel, désireux de comprendre les risques associés à cette entreprise technologique dynamique. Une telle analyse permettra d'anticiper les pertes potentielles dans des situations de marché inattendues.
+
+## Données de Rendement
+
+Dans le cadre cette analyse, nous travaillons sur les données de prix de clôture des actions d'Adobe sur la période 2005-2020. Ces données sont accessible sur yahoo finance depuis la library R \textit{quantmod}.
+Les rendements logarithmiques quotidiens pour cette série sont calculés par:
+
+ \begin{equation*}
+     R_{t}=\ln{\dfrac{P_{t}}{P_{t-1}}}
+ \end{equation*}
+où $P_{t}$ est le prix de clôture de l’action au jour t.
+Pour les besoins de la modélisation, nous travaillerons sur les pertes en considérant les rendements négatifs $L_t = -R_t$.
+
+```{r}
+library("quantmod")
+```
+
+
+
+### Import data
+
+```{r}
+# Get historical data for Bitcoin from Yahoo Finance
+data <- getSymbols("ADBE", src = "yahoo", from="2005-01-01", to = "2020-12-31", auto.assign = FALSE)
+data <- na.omit(data)
+data_cl <- Cl(data)
+
+# Log-rendements en pourcentage
+# Nous passons les pertes en positifs
+
+data_cl$`return` <- - Delt(data_cl, k = 1, type = 'log') * 100
+```
+
+### Analyse descriptive
+```{r}
+# Visualiser les rendements return
+par(mfrow=c(1,2))
+plot(data_cl$`ADBE.Close`, main = "ADOBE stock's closing price", ylab = "Closing Price (US dollars)", col = "blue")
+plot(data_cl$`return`, main = "Daily log-Return loss on ADOBE stock", ylab = "Daily log-Return (%)", col = "blue")
+```
+Au cours de la dernière decennie, le cours des actions Adobe a connu une évolution exponentielle. Coté à moins de 100\$ avant 2009, le cours est passé au dessus de la barre de 200\$ en 2015 et fluctue en fin 2020 autour de 400\$.
+
+Deux pertes majeurs se dégage sur la période d'étude: une en 2009 et une autre en 2018. Il serait intéressant d'explorer les cause de ces volatilités atypiques.
+
+### Indépendance des observations
+Nous étudions ici les corrélations entre les rendements observés dans le but de nous assurer du respect des hypothèses indépendance et d'indentique distribution des données faite en amont du modèle à estimer.
+```{r}
+xt = na.omit(ts(data=data_cl$return))
+
+par(mfrow=c(1,2))
+acf(xt, lag.max =250, col='red' )
+pacf(xt, lag.max =250, col='red' )
+```
+L'autocorrélogramme suggère une absence d'autocorrélation entre les rendements, laissant penser que ceux-ci pourraient être indépendants dans le temps.
+
+
+```{r}
+library(chron)
+```
+
+## Modélisation des Valeurs Extrêmes
+Afin de pourvoir extimer les pertes extrêmes quotidiennes enregistrées sur les actions adobe, nous allons mettre en application la théorie des valeurs extrêmes. Des deux méthodes couramment utilisées dans le cadre des valeurs extrêmes, nous allons nous allons implémenter la méthode de la distribution des valeurs extrême (GEV). 
+Cette méthode consiste à ajuster les valeurs maximales d’échantillons de rendements ($L_t$) extrêmes à une loi des valeurs extrêmes généralisée. Il est nécessaire pour ce faire de choisir une fréquence pour les blocs d’analyse. Nous considérons des blocs mensuels (20 jours), et de calculer les valeurs maximales de rendement pour chaque bloc. Ces valeurs maximales suivent une distribution qui sera ajustée pour estimer la queue de la distribution des extrêmes.
+
+### Echantillon retenue pour l'étude
+Comme annocé plus haut, pour chaque mois on retient la perte maximale enregistrée. Chaque mois est un bloc de 20 jours correspondant aux jours d'ouverture de la bourse. 
+
+
+```{r}
+# Créer un identifiant de période de 10 jours
+data_cl$period <- as.integer((1:nrow(data_cl) - 1) / 20)
+
+# Calculer le maximum pour chaque trimestre
+max_ten_day <- aggregate(return ~ period, data = data_cl, FUN = max)
+
+# Tracer le résultat
+plot(max_ten_day$period, max_ten_day$return, type = "b",
+    main = "Max des rendements sur chaque période de 20 jours",
+    xlab = "Période de 20 jours", ylab = "Max rendement")
+```
+L'échantillon obtenue par l'approche par block est constitué de ... observations.
+
+
+### Estimation d'une GEV
+```{r}
+## La librairie pour l'EVT
+library(evd)
+```
+
+
+```{r}
+fit <- fgev(max_ten_day$return)
+fit
+```
+### Estimation et signifiactifité des paramètres
+```{r}
+## Intervalles de confiance
+confint(fit)##à la Wald
+
+prof <- profile(fit)## via le profil de la vraisemblance
+plot(prof)
+confint(prof)
+```
+
+
+### Validation du modèle
+La pertinence de l'ajustement sera discutée graphiquement sur la base du P-P et Q-Q plot.
+```{r}
+## Model checking
+plot(fit)
+```
+
+
+## Conclusion
+
