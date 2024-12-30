@@ -1,0 +1,205 @@
+---
+title: "TVE_Fi NiyoD"
+author: "Niyo D. JC"
+date: "2024-10-28"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+### Importation
+
+```{r}
+library(quantmod)
+library(TSA)
+library(evd)
+library(chron)
+```
+
+```{r}
+data <- getSymbols("ADBE",env=NULL, from="2009-01-01", to = "2024-11-01")
+
+data_cl <- Cl(data)
+
+data_cl$Perte <- - Delt(data_cl, k = 1, type = 'log')
+data_cl <- na.omit(data_cl)
+```
+
+```{r}
+chartSeries(data_cl, theme = "white", type = "line")
+```
+
+### Exploration
+
+```{r}
+summary(data_cl)
+```
+
+```{r}
+min_index <- which.min(data_cl$Perte)  # indice du minimum des prix de clôture
+max_index <- which.max(data_cl$Perte)  # indice du maximum des prix de clôture
+
+# Afficher les dates des minima et maxima
+min_date <- index(data_cl)[min_index]
+max_date <- index(data_cl)[max_index]
+
+# Afficher les résultats
+min_date
+max_date
+```
+
+```{r}
+sd(data_cl$Perte)
+```
+
+```{r}
+ks.test(data_cl$Perte, "pnorm", mean(data_cl$Perte), sd(data_cl$Perte))
+```
+
+```{r}
+adobe_ts <- ts(data_cl$Perte, frequency = 252) # 252 pour les jours de trading annuels
+decomp <- decompose(adobe_ts)
+plot(decomp)
+```
+
+```{r}
+volat_30d <- runSD(data_cl$Perte, n = 30)
+chartSeries(volat_30d, name = "Volatilité sur 30 jours d'Adobe") # Ou je pouvais prendre sur les 20 jours, le marché étant fermé le weekend. Mais bon ce graphique n'est pas tres explicite
+```
+
+```{r}
+hist(data_cl$Perte, main="Distribution des valeurs de ferméture adj", xlab="$", breaks=30, col="lightblue")
+```
+
+```{r}
+plot(index(data_cl), data_cl$Perte, type="l", main="Évolution temporelle du prix de clôture ajusté d'Adobe", xlab="Date", ylab="Prix de clôture ajusté (USD)", col="blue")
+```
+
+```{r}
+library(tseries)
+(adf_test <- adf.test(data_cl$Perte, alternative = "stationary", k = 0))
+```
+
+```{r}
+acf(data_cl$Perte, main="Autocorrélation des prix de clotures ajustés", lag.max = 252*14)
+```
+
+```{r}
+pacf(data_cl$Perte, main="Autocorrélation Partielle des prix de clotures ajustés", lag.max = 255*5)
+```
+
+#### Vue sur le max
+
+```{r}
+# Créer un objet xts avec les données
+data_xts <- xts(data_cl$Perte, order.by = as.Date(index(data_cl)))
+
+# Maxima annuels
+ann_max <- apply.yearly(data_xts, max, na.rm = TRUE)
+
+# Tracé des maxima annuels
+#plot(index(ann_max), coredata(ann_max), type = "o", xlab = "Année", ylab = "Max Perte")
+
+# Ajustement GEV pour les maxima annuels
+covar <- data.frame(year = scale(1:nrow(ann_max), scale = FALSE))
+(fitted_ann <- fgev(coredata(ann_max), nsloc = covar))
+print(confint(profile(fitted_ann)))
+print(AIC(fitted_ann))
+print(BIC(fitted_ann))
+```
+
+```{r}
+
+```
+
+```{r}
+# Maxima trimestriels
+quarter_max <- apply.quarterly(data_xts, max, na.rm = TRUE)
+
+# Créer une étiquette "Année-Trimestre"
+quarter_labels <- format(index(quarter_max), "%Y-Q%q")
+
+# Tracé des maxima trimestriels
+#plot(index(quarter_max), coredata(quarter_max), type = "o", xaxt = "n", xlab = "Trimestre", ylab = "Max Perte")
+#axis(1, at = index(quarter_max), labels = quarter_labels, las = 2)
+
+# Ajustement GEV pour les maxima trimestriels
+covar_q <- data.frame(quarter = scale(1:nrow(quarter_max), scale = FALSE))
+(fitted_qtr <- fgev(coredata(quarter_max), nsloc = covar_q))
+print(confint(profile(fitted_qtr)))
+print(AIC(fitted_qtr))
+print(BIC(fitted_qtr))
+```
+
+```{r}
+# Maxima trimestriels
+quarter_max <- apply.quarterly(data_xts, max, na.rm = TRUE)
+
+# Créer une étiquette "Année-Trimestre"
+quarter_labels <- format(index(quarter_max), "%Y-Q%q")
+
+# Tracé des maxima trimestriels
+#plot(index(quarter_max), coredata(quarter_max), type = "o", xaxt = "n", xlab = "Trimestre", ylab = "Max Perte")
+#axis(1, at = index(quarter_max), labels = quarter_labels, las = 2)
+
+# Ajustement GEV pour les maxima trimestriels
+#covar_q <- data.frame(quarter = scale(1:nrow(quarter_max), scale = FALSE))
+(fitted_qtr <- fgev(coredata(quarter_max)))
+print(confint(profile(fitted_qtr)))
+print(AIC(fitted_qtr))
+print(BIC(fitted_qtr))
+```
+
+```{r}
+sub_data_xts <- data_xts["2020/2022"] #"2010/2012" - "2014/2016" - "2018/2019" - "2020/2022"
+
+# Maxima trimestriels
+quarter_max <- apply.quarterly(sub_data_xts, max, na.rm = TRUE)
+
+# Créer une étiquette "Année-Trimestre"
+quarter_labels <- format(index(quarter_max), "%Y-Q%q")
+
+# Tracé des maxima trimestriels
+plot(index(quarter_max), coredata(quarter_max), type = "o", xaxt = "n", xlab = "Trimestre", ylab = "Max Perte")
+axis(1, at = index(quarter_max), labels = quarter_labels, las = 2)
+
+# Ajustement GEV pour les maxima trimestriels
+#covar_q <- data.frame(quarter = scale(1:nrow(quarter_max), scale = FALSE))
+(fitted_qtr_p <- fgev(coredata(quarter_max)))
+print(confint(profile(fitted_qtr_p)))
+print(AIC(fitted_qtr_p))
+lrt_result <- deviance(fitted_qtr) - deviance(fitted_qtr_p)
+(p_value <- pchisq(lrt_result, df = 1, lower.tail = FALSE))
+```
+
+### GARCH
+
+```{r}
+library(rugarch)
+library(evir)
+
+# Définir la série temporelle de vos données (exemple avec custom_quarterly_max$FX)
+y <- data$FX
+
+# Spécifier le modèle GARCH(1,1) avec une distribution t de Student
+garch_spec <- ugarchspec(
+  variance.model = list(model = "sGARCH", garchOrder = c(1, 1)),
+  mean.model = list(armaOrder = c(0, 0), include.mean = TRUE),
+  distribution.model = "std"  # t-distribution pour les queues épaisses
+)
+
+# Estimer le modèle GARCH(1,1)
+garch_fit <- ugarchfit(spec = garch_spec, data = y)
+conditional_variance <- sigma(garch_fit)
+# Afficher les résultats du modèle GARCH
+summary(garch_fit)
+
+# Récupérer les résidus conditionnels (variance conditionnelle) pour les intégrer dans le modèle GEV
+epsilon_t <- residuals(garch_fit)
+
+data$residuals <- epsilon_t / conditional_variance
+```
