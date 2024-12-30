@@ -1,4 +1,3 @@
 ### Etude des pertes journaliers sur les actions d’Adobe
-Pour une maîtrise des pertes extrêmes, la prise en compte de la non-stationnarité et de la dépendance s'est faite. Dans un premier temps à travers le modèle GEV qui aboutit à une distribution de Gumbel et dans un second temps à travers un modèle GARCH(1,1), ce qui retourne une VaR de 0.155 et 0.146 respectivement pour une période de retour à 50 ans.
-
+La veille sur les pertes a pu se faire à travers une prise en compte des dépendances. Ce qui conduit à une comparaison des modèles sur les données de base s'exprimant comme un Fréchet et sur les résidus du GARCH(1,1) ayant la forme de Gumbel. Il en ressort, à 50 ans, une VaR de 0.155 et 0.146 respectivement.
 #### Deba Franck | Hervé Freddy | Jules Christian Niyo D.
